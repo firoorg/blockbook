@@ -931,7 +931,7 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 					},
 				},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: false},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: false},
 		},
 		{
 			name: "2",
@@ -978,7 +978,7 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 					},
 				},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: false},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: false},
 		},
 		{
 			name: "empty address",
@@ -1003,7 +1003,7 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 					},
 				},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: false},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: false},
 		},
 		{
 			name: "empty",
@@ -1012,10 +1012,10 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 				Inputs:  []TxInput{},
 				Outputs: []TxOutput{},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: false},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: false},
 		},
 		{
-			name: "extendedIndex 1",
+			name: "spendingIndex 1",
 			hex:  "e0398241032ea9149eb21980dc9d413d8eac27314938b9da920ee53e8705021918f2c0c50c7ce2f5670fd52de738288299bd854a85ef1bb304f62f35ced1bd49a8a810002ea91409f70b896169c37981d2b54b371df0d81a136a2c870501dd7e28c0e96672c7fcc8da131427fcea7e841028614813496a56c11e8a6185c16861c495012ea914e371782582a4addb541362c55565d2cdf56f6498870501a1e35ec0ed308c72f9804dfeefdbb483ef8fd1e638180ad81d6b33f4b58d36d19162fa6d8106052fa9141d9ca71efa36d814424ea6ca1437e67287aebe348705012aadcac000b2c06055e5e90e9c82bd4181fde310104391a7fa4f289b1704e5d90caa38400081ce8685592ea91424fbc77cdc62702ade74dcf989c15e5d3f9240bc870501664894c02fa914afbfb74ee994c7d45f6698738bc4226d065266f7870501a1e35ec0effd9ef509383d536b1c8af5bf434c8efbf521a4f2befd4022bbd68694b4ac75ef17a1f4233276a914d2a37ce20ac9ec4f15dd05a7c6e8e9fbdb99850e88ac043b9943603376a9146b2044146a4438e6e5bfbc65f147afeb64d14fbb88ac05012a05f2007c3be24063f268aaa1ed81b64776798f56088757641a34fb156c4f51ed2e9d25a9956d8396f32a",
 			data: &TxAddresses{
 				Height: 12345,
@@ -1075,11 +1075,11 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 					},
 				},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: true},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: true},
 		},
 		{
-			name: "extendedIndex empty address",
-			hex:  "baef9a152d01010204d2020002162e010162fdd824a780cbb718eeb766eb05d83fdefc793a27082cd5e67f856d69798cf7db03e039",
+			name: "spendingIndex empty address",
+			hex:  "baef9a1501000204d2020002162e010162fdd824a780cbb718eeb766eb05d83fdefc793a27082cd5e67f856d69798cf7db03e039",
 			data: &TxAddresses{
 				Height: 123456789,
 				VSize:  45,
@@ -1104,7 +1104,7 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 					},
 				},
 			},
-			rocksDB: &RocksDB{chainParser: parser, extendedIndex: true},
+			rocksDB: &RocksDB{chainParser: parser, spendingIndex: true},
 		},
 	}
 	varBuf := make([]byte, maxPackedBigintBytes)

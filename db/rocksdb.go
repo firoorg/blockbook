@@ -60,17 +60,17 @@ const (
 // RocksDB handle
 type RocksDB struct {
 	path          string
-	db            *grocksdb.DB
-	wo            *grocksdb.WriteOptions
-	ro            *grocksdb.ReadOptions
-	cfh           []*grocksdb.ColumnFamilyHandle
+	db            *gorocksdb.DB
+	wo            *gorocksdb.WriteOptions
+	ro            *gorocksdb.ReadOptions
+	cfh           []*gorocksdb.ColumnFamilyHandle
 	chainParser   bchain.BlockChainParser
 	is            *common.InternalState
 	metrics       *common.Metrics
-	cache         *grocksdb.Cache
+	cache         *gorocksdb.Cache
 	maxOpenFiles  int
 	cbs           connectBlockStats
-	extendedIndex bool
+	spendingIndex bool
 }
 
 const (
@@ -127,7 +127,7 @@ func openDB(path string, c *grocksdb.Cache, openFiles int) (*grocksdb.DB, []*gro
 
 // NewRocksDB opens an internal handle to RocksDB environment.  Close
 // needs to be called to release it.
-func NewRocksDB(path string, cacheSize, maxOpenFiles int, parser bchain.BlockChainParser, metrics *common.Metrics, extendedIndex bool) (d *RocksDB, err error) {
+func NewRocksDB(path string, cacheSize, maxOpenFiles int, parser bchain.BlockChainParser, metrics *common.Metrics, spendingIndex bool) (d *RocksDB, err error) {
 	glog.Infof("rocksdb: opening %s, required data version %v, cache size %v, max open files %v", path, dbVersion, cacheSize, maxOpenFiles)
 
 	cfNames = append([]string{}, cfBaseNames...)
@@ -136,7 +136,7 @@ func NewRocksDB(path string, cacheSize, maxOpenFiles int, parser bchain.BlockCha
 		cfNames = append(cfNames, cfNamesBitcoinType...)
 	} else if chainType == bchain.ChainEthereumType {
 		cfNames = append(cfNames, cfNamesEthereumType...)
-		extendedIndex = false
+		spendingIndex = false
 	} else {
 		return nil, errors.New("Unknown chain type")
 	}
@@ -148,7 +148,7 @@ func NewRocksDB(path string, cacheSize, maxOpenFiles int, parser bchain.BlockCha
 	}
 	wo := grocksdb.NewDefaultWriteOptions()
 	ro := grocksdb.NewDefaultReadOptions()
-	return &RocksDB{path, db, wo, ro, cfh, parser, nil, metrics, c, maxOpenFiles, connectBlockStats{}, extendedIndex}, nil
+	return &RocksDB{path, db, wo, ro, cfh, parser, nil, metrics, c, maxOpenFiles, connectBlockStats{}, spendingIndex}, nil
 }
 
 func (d *RocksDB) closeDB() error {
@@ -206,9 +206,9 @@ func (d *RocksDB) WriteBatch(wb *grocksdb.WriteBatch) error {
 	return d.db.Write(d.wo, wb)
 }
 
-// HasExtendedIndex returns true if the DB indexes input txids and spending data
-func (d *RocksDB) HasExtendedIndex() bool {
-	return d.extendedIndex
+// HasSpendingIndex returns true if the DB indexes input txids and spending data
+func (d *RocksDB) HasSpendingIndex() bool {
+	return d.spendingIndex
 }
 
 // GetMemoryStats returns memory usage statistics as reported by RocksDB
@@ -427,9 +427,9 @@ func (ti *TxInput) Addresses(p bchain.BlockChainParser) ([]string, bool, error) 
 
 // TxOutput holds output data of the transaction in TxAddresses
 type TxOutput struct {
-	AddrDesc bchain.AddressDescriptor
-	Spent    bool
-	ValueSat big.Int
+	AddrDesc    bchain.AddressDescriptor
+	Spent       bool
+	ValueSat    big.Int
 	// extended index properties
 	SpentTxid   string
 	SpentIndex  uint32
@@ -602,7 +602,7 @@ func (d *RocksDB) processAddressesBitcoinType(block *bchain.Block, addresses add
 		}
 		blockTxIDs[txi] = btxID
 		ta := TxAddresses{Height: block.Height}
-		if d.extendedIndex {
+		if d.spendingIndex {
 			if tx.VSize > 0 {
 				ta.VSize = uint32(tx.VSize)
 			} else {
@@ -673,10 +673,6 @@ func (d *RocksDB) processAddressesBitcoinType(block *bchain.Block, addresses add
 			if err != nil {
 				// do not process inputs without input txid
 				if err == bchain.ErrTxidMissing {
-					if tx.Vin[i].ScriptSig.Hex == "" {
-						tx.Vin[i].ScriptSig.Hex = tx.Vin[i].Coinbase
-					}
-					tai.AddrDesc = d.chainParser.GetAddrDescForUnknownInput(tx, i)
 					continue
 				}
 				return err
@@ -710,7 +706,7 @@ func (d *RocksDB) processAddressesBitcoinType(block *bchain.Block, addresses add
 			tai.ValueSat = spentOutput.ValueSat
 			// mark the output as spent in tx
 			spentOutput.Spent = true
-			if d.extendedIndex {
+			if d.spendingIndex {
 				spentOutput.SpentTxid = tx.Txid
 				spentOutput.SpentIndex = uint32(i)
 				spentOutput.SpentHeight = block.Height
@@ -990,7 +986,7 @@ func (d *RocksDB) packTxAddresses(ta *TxAddresses, buf []byte, varBuf []byte) []
 	buf = buf[:0]
 	l := packVaruint(uint(ta.Height), varBuf)
 	buf = append(buf, varBuf[:l]...)
-	if d.extendedIndex {
+	if d.spendingIndex {
 		l = packVaruint(uint(ta.VSize), varBuf)
 		buf = append(buf, varBuf[:l]...)
 	}
@@ -1010,7 +1006,7 @@ func (d *RocksDB) packTxAddresses(ta *TxAddresses, buf []byte, varBuf []byte) []
 func (d *RocksDB) appendTxInput(txi *TxInput, buf []byte, varBuf []byte) []byte {
 	la := len(txi.AddrDesc)
 	var l int
-	if d.extendedIndex {
+	if d.spendingIndex {
 		if txi.Txid == "" {
 			// coinbase transaction
 			la = ^la
@@ -1052,7 +1048,7 @@ func (d *RocksDB) appendTxOutput(txo *TxOutput, buf []byte, varBuf []byte) []byt
 	buf = append(buf, txo.AddrDesc...)
 	l = packBigint(&txo.ValueSat, varBuf)
 	buf = append(buf, varBuf[:l]...)
-	if d.extendedIndex && txo.Spent {
+	if d.spendingIndex && txo.Spent {
 		btxID, err := d.chainParser.PackTxid(txo.SpentTxid)
 		if err != nil {
 			if err != bchain.ErrTxidMissing {
@@ -1135,7 +1131,7 @@ func (d *RocksDB) unpackTxAddresses(buf []byte) (*TxAddresses, error) {
 	ta := TxAddresses{}
 	height, l := unpackVaruint(buf)
 	ta.Height = uint32(height)
-	if d.extendedIndex {
+	if d.spendingIndex {
 		vsize, ll := unpackVaruint(buf[l:])
 		ta.VSize = uint32(vsize)
 		l += ll
@@ -1156,7 +1152,7 @@ func (d *RocksDB) unpackTxAddresses(buf []byte) (*TxAddresses, error) {
 }
 
 func (d *RocksDB) unpackTxInput(ti *TxInput, buf []byte) int {
-	if d.extendedIndex {
+	if d.spendingIndex {
 		al, l := unpackVarint(buf)
 		var coinbase bool
 		if al < 0 {
@@ -1196,7 +1192,7 @@ func (d *RocksDB) unpackTxOutput(to *TxOutput, buf []byte) int {
 	al += l
 	to.ValueSat, l = unpackBigint(buf[al:])
 	al += l
-	if d.extendedIndex && to.Spent {
+	if d.spendingIndex && to.Spent {
 		l = d.chainParser.PackedTxidLen()
 		to.SpentTxid, _ = d.chainParser.UnpackTxid(buf[al : al+l])
 		al += l
@@ -1861,7 +1857,7 @@ func (d *RocksDB) LoadInternalState(rpcCoin string) (*common.InternalState, erro
 	data := val.Data()
 	var is *common.InternalState
 	if len(data) == 0 {
-		is = &common.InternalState{Coin: rpcCoin, UtxoChecked: true, SortedAddressContracts: true, ExtendedIndex: d.extendedIndex}
+		is = &common.InternalState{Coin: rpcCoin, UtxoChecked: true, SortedAddressContracts: true, SpendingIndex: d.spendingIndex}
 	} else {
 		is, err = common.UnpackInternalState(data)
 		if err != nil {
@@ -1874,8 +1870,8 @@ func (d *RocksDB) LoadInternalState(rpcCoin string) (*common.InternalState, erro
 		} else if is.Coin != rpcCoin {
 			return nil, errors.Errorf("Coins do not match. DB coin %v, RPC coin %v", is.Coin, rpcCoin)
 		}
-		if is.ExtendedIndex != d.extendedIndex {
-			return nil, errors.Errorf("ExtendedIndex setting does not match. DB extendedIndex %v, extendedIndex in options %v", is.ExtendedIndex, d.extendedIndex)
+		if is.SpendingIndex != d.spendingIndex {
+			return nil, errors.Errorf("SpendingIndex does not match. DB spendingIndex %v, spendingIndex in options %v", is.SpendingIndex, d.spendingIndex)
 		}
 	}
 	nc, err := d.checkColumns(is)

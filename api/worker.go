@@ -104,7 +104,7 @@ func (w *Worker) setSpendingTxToVout(vout *Vout, txid string, height uint32) err
 
 // GetSpendingTxid returns transaction id of transaction that spent given output
 func (w *Worker) GetSpendingTxid(txid string, n int) (string, error) {
-	if w.db.HasExtendedIndex() {
+	if w.db.HasSpendingIndex() {
 		tsp, err := w.db.GetTxAddresses(txid)
 		if err != nil {
 			return "", err
@@ -290,7 +290,6 @@ func (w *Worker) getTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 	var pValInSat *big.Int
 	vins := make([]Vin, len(bchainTx.Vin))
 	rbf := false
-	var rawTxForInputValues *bchain.TxForInValues
 	for i := range bchainTx.Vin {
 		bchainVin := &bchainTx.Vin[i]
 		vin := &vins[i]
@@ -357,28 +356,6 @@ func (w *Worker) getTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 				if vin.ValueSat != nil {
 					valInSat.Add(&valInSat, (*big.Int)(vin.ValueSat))
 				}
-			} else {
-				vin.AddrDesc = w.chainParser.GetAddrDescForUnknownInput(bchainTx, i)
-				vin.Addresses, vin.IsAddress, err = w.chainParser.GetAddressesFromAddrDesc(vin.AddrDesc)
-				if rawTxForInputValues == nil {
-					rawTxJSON, err := w.chain.GetTransactionSpecific(bchainTx)
-					if err != nil {
-						glog.Error("Can't retrieve raw transaction with id ", bchainTx.Txid, ":", err)
-					}
-					if rawTxJSON != nil {
-						rawTxForInputValues = &bchain.TxForInValues{Vin: make([]bchain.VinValues, 0)}
-						err = json.Unmarshal(rawTxJSON, rawTxForInputValues)
-					}
-				}
-				if rawTxForInputValues != nil && rawTxForInputValues.Vin != nil && len(rawTxForInputValues.Vin) > i {
-					inputValue, err := w.chainParser.AmountToBigInt(rawTxForInputValues.Vin[i].Value)
-					if err == nil && inputValue.Cmp(big.NewInt(0)) != 0 {
-						vin.ValueSat = (*Amount)(&inputValue)
-						if vin.ValueSat != nil {
-							valInSat.Add(&valInSat, (*big.Int)(vin.ValueSat))
-						}
-					}
-				}
 			}
 		} else if w.chainType == bchain.ChainEthereumType {
 			if len(bchainVin.Addresses) > 0 {
@@ -408,7 +385,7 @@ func (w *Worker) getTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 		if ta != nil {
 			vout.Spent = ta.Outputs[i].Spent
 			if vout.Spent {
-				if w.db.HasExtendedIndex() {
+				if w.db.HasSpendingIndex() {
 					vout.SpentTxID = ta.Outputs[i].SpentTxid
 					vout.SpentIndex = int(ta.Outputs[i].SpentIndex)
 					vout.SpentHeight = int(ta.Outputs[i].SpentHeight)
@@ -860,7 +837,6 @@ func (w *Worker) txFromTxAddress(txid string, ta *db.TxAddresses, bi *db.BlockIn
 	var err error
 	var valInSat, valOutSat, feesSat big.Int
 	vins := make([]Vin, len(ta.Inputs))
-	var rawTxForInputValues *bchain.TxForInValues
 	for i := range ta.Inputs {
 		tai := &ta.Inputs[i]
 		vin := &vins[i]
@@ -869,32 +845,9 @@ func (w *Worker) txFromTxAddress(txid string, ta *db.TxAddresses, bi *db.BlockIn
 		valInSat.Add(&valInSat, &tai.ValueSat)
 		vin.Addresses, vin.IsAddress, err = tai.Addresses(w.chainParser)
 		if err != nil {
-			//glog.Errorf("tai.Addresses error %v, tx %v, input %v, tai %+v", err, txid, i, tai)
-		} else {
-			if vin.Txid == "" {
-				if rawTxForInputValues == nil {
-					bchainTx, err := w.chain.GetTransaction(txid)
-					rawTxJSON, err := w.chain.GetTransactionSpecific(bchainTx)
-					if err != nil {
-						glog.Error("Can't retrieve raw transaction with id ", txid, ":", err)
-					}
-					if rawTxJSON != nil {
-						rawTxForInputValues = &bchain.TxForInValues{Vin: make([]bchain.VinValues, 0)}
-						err = json.Unmarshal(rawTxJSON, rawTxForInputValues)
-					}
-				}
-				if rawTxForInputValues != nil && rawTxForInputValues.Vin != nil && len(rawTxForInputValues.Vin) > i {
-					inputValue, err := w.chainParser.AmountToBigInt(rawTxForInputValues.Vin[i].Value)
-					if err == nil && inputValue.Cmp(big.NewInt(0)) != 0 {
-						vin.ValueSat = (*Amount)(&inputValue)
-						if vin.ValueSat != nil {
-							valInSat.Add(&valInSat, (*big.Int)(vin.ValueSat))
-						}
-					}
-				}
-			}
+			glog.Errorf("tai.Addresses error %v, tx %v, input %v, tai %+v", err, txid, i, tai)
 		}
-		if w.db.HasExtendedIndex() {
+		if w.db.HasSpendingIndex() {
 			vin.Txid = tai.Txid
 			vin.Vout = tai.Vout
 		}
@@ -912,7 +865,7 @@ func (w *Worker) txFromTxAddress(txid string, ta *db.TxAddresses, bi *db.BlockIn
 			glog.Errorf("tai.Addresses error %v, tx %v, output %v, tao %+v", err, txid, i, tao)
 		}
 		vout.Spent = tao.Spent
-		if vout.Spent && w.db.HasExtendedIndex() {
+		if vout.Spent && w.db.HasSpendingIndex() {
 			vout.SpentTxID = tao.SpentTxid
 			vout.SpentIndex = int(tao.SpentIndex)
 			vout.SpentHeight = int(tao.SpentHeight)

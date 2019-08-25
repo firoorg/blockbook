@@ -59,7 +59,7 @@ type InternalState struct {
 	Host         string `json:"host"`
 
 	DbState       uint32 `json:"dbState"`
-	ExtendedIndex bool   `json:"extendedIndex"`
+	SpendingIndex bool   `json:"spendingIndex"`
 
 	LastStore time.Time `json:"lastStore"`
 

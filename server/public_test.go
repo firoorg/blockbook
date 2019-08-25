@@ -38,12 +38,12 @@ func TestMain(m *testing.M) {
 	os.Exit(c)
 }
 
-func setupRocksDB(parser bchain.BlockChainParser, chain bchain.BlockChain, t *testing.T, extendedIndex bool) (*db.RocksDB, *common.InternalState, string) {
+func setupRocksDB(parser bchain.BlockChainParser, chain bchain.BlockChain, t *testing.T, spendingIndex bool) (*db.RocksDB, *common.InternalState, string) {
 	tmp, err := ioutil.TempDir("", "testdb")
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := db.NewRocksDB(tmp, 100000, -1, parser, nil, extendedIndex)
+	d, err := db.NewRocksDB(tmp, 100000, -1, parser, nil, spendingIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +94,8 @@ func setupRocksDB(parser bchain.BlockChainParser, chain bchain.BlockChain, t *te
 
 var metrics *common.Metrics
 
-func setupPublicHTTPServer(parser bchain.BlockChainParser, chain bchain.BlockChain, t *testing.T, extendedIndex bool) (*PublicServer, string) {
-	d, is, path := setupRocksDB(parser, chain, t, extendedIndex)
+func setupPublicHTTPServer(parser bchain.BlockChainParser, chain bchain.BlockChain, t *testing.T, spendingIndex bool) (*PublicServer, string) {
+	d, is, path := setupRocksDB(parser, chain, t, spendingIndex)
 	// setup internal state and match BestHeight to test data
 	is.Coin = "Fakecoin"
 	is.CoinLabel = "Fake Coin"
@@ -104,7 +104,7 @@ func setupPublicHTTPServer(parser bchain.BlockChainParser, chain bchain.BlockCha
 	var err error
 	// metrics can be setup only once
 	if metrics == nil {
-		metrics, err = common.GetMetrics("Fakecoin" + strconv.FormatBool(extendedIndex))
+		metrics, err = common.GetMetrics("Fakecoin" + strconv.FormatBool(spendingIndex))
 		if err != nil {
 			glog.Fatal("metrics: ", err)
 		}
@@ -1559,7 +1559,7 @@ func Test_PublicServer_BitcoinType(t *testing.T) {
 	websocketTestsBitcoinType(t, ts)
 }
 
-func httpTestsExtendedIndex(t *testing.T, ts *httptest.Server) {
+func httpTestsSpendingIndex(t *testing.T, ts *httptest.Server) {
 	tests := []struct {
 		name        string
 		r           *http.Request
@@ -1623,7 +1623,7 @@ func httpTestsExtendedIndex(t *testing.T, ts *httptest.Server) {
 	}
 }
 
-func Test_PublicServer_BitcoinType_ExtendedIndex(t *testing.T) {
+func Test_PublicServer_BitcoinType_SpendingIndex(t *testing.T) {
 	parser, chain := setupChain(t)
 
 	s, dbpath := setupPublicHTTPServer(parser, chain, t, true)
@@ -1633,5 +1633,5 @@ func Test_PublicServer_BitcoinType_ExtendedIndex(t *testing.T) {
 	ts := httptest.NewServer(s.https.Handler)
 	defer ts.Close()
 
-	httpTestsExtendedIndex(t, ts)
+	httpTestsSpendingIndex(t, ts)
 }
