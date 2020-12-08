@@ -492,6 +492,7 @@ func (s *PublicServer) parseTemplates() []*template.Template {
 		"tokenCount":               tokenCount,
 		"hasPrefix":                strings.HasPrefix,
 		"jsStr":                    jsStr,
+		"addressEquals":            addressEquals,
 	}
 	var createTemplate func(filenames ...string) *template.Template
 	if s.debug {
@@ -560,6 +561,12 @@ func (s *PublicServer) postHtmlTemplateHandler(data *TemplateData, w http.Respon
 
 }
 
+func addressEquals(addresses []string, value string) bool {
+	return len(addresses) == 1 && addresses[0] == value
+}
+
+// for now return the string as it is
+// in future could be used to do coin specific formatting
 func (s *PublicServer) formatAmount(a *api.Amount) string {
 	if a == nil {
 		return "0"
