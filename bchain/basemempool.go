@@ -14,11 +14,13 @@ type addrIndex struct {
 type txEntry struct {
 	addrIndexes []addrIndex
 	time        uint32
+	filter      string
 }
 
 type txidio struct {
-	txid string
-	io   []addrIndex
+	txid   string
+	io     []addrIndex
+	filter string
 }
 
 // BaseMempool is mempool base handle
@@ -122,6 +124,7 @@ func (m *BaseMempool) txToMempoolTx(tx *Tx) *MempoolTx {
 		Blocktime:        time.Now().Unix(),
 		LockTime:         tx.LockTime,
 		Txid:             tx.Txid,
+		VSize:            tx.VSize,
 		Version:          tx.Version,
 		Vout:             tx.Vout,
 		CoinSpecificData: tx.CoinSpecificData,
