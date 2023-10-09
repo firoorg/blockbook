@@ -1,6 +1,7 @@
 package bchain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/golang/glog"
@@ -74,11 +75,11 @@ func (m *MempoolEthereumType) createTxEntry(txid string, txTime uint32) (txEntry
 			addrIndexes, input.AddrDesc = appendAddress(addrIndexes, ^int32(i), a, parser)
 		}
 	}
-	t, err := parser.EthereumTypeGetErc20FromTx(tx)
+	t, err := parser.EthereumTypeGetTokenTransfersFromTx(tx)
 	if err != nil {
-		glog.Error("GetErc20FromTx for tx ", txid, ", ", err)
+		glog.Error("GetGetTokenTransfersFromTx for tx ", txid, ", ", err)
 	} else {
-		mtx.Erc20 = t
+		mtx.TokenTransfers = t
 		for i := range t {
 			addrIndexes, _ = appendAddress(addrIndexes, ^int32(i+1), t[i].From, parser)
 			addrIndexes, _ = appendAddress(addrIndexes, int32(i+1), t[i].To, parser)
@@ -164,4 +165,9 @@ func (m *MempoolEthereumType) RemoveTransactionFromMempool(txid string) {
 		m.removeEntryFromMempool(txid, entry)
 	}
 	m.mux.Unlock()
+}
+
+// GetTxidFilterEntries returns all mempool entries with golomb filter from
+func (m *MempoolEthereumType) GetTxidFilterEntries(filterScripts string, fromTimestamp uint32) (MempoolTxidFilterEntries, error) {
+	return MempoolTxidFilterEntries{}, errors.New("Not supported")
 }
