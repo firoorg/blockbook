@@ -26,7 +26,7 @@
                     {{if $vin.Txid}}
                     <a class="outpoint" href="/tx/{{$vin.Txid}}" tt="Outpoint {{$vin.Txid}},{{$vin.Vout}}">←</a>
                     {{end}}
-                    {{if $vin.Addresses}}{{- if addressEquals $vin.Addresses "LelantusJoinSplit" -}}Hidden{{- else -}}{{amountSpan $vin.ValueSat $data "tx-amt copyable"}}{{- end -}}{{end}}
+                    {{if $vin.Addresses}}{{- if addressEquals $vin.Addresses "LelantusJoinSplit" || addressEquals $vin.Addresses "SparkSpend"-}}Hidden{{- else -}}{{amountSpan $vin.ValueSat $data "tx-amt copyable"}}{{- end -}}{{end}}
                 </div>
                 {{else}}
                 <div class="col-12">No Inputs</div>
@@ -46,7 +46,7 @@
                     Unparsed address
                     {{end}}
                     <span class="tx-amt">
-                        {{- if addressEquals $vout.Addresses "LelantusJMint" -}}
+                        {{- if addressEquals $vout.Addresses "LelantusJMint" || addressEquals $vout.Addresses "SparkSMint"-}}
                             Hidden
                         {{- else -}}
                             {{amountSpan $vout.ValueSat $data "copyable"}}{{if $vout.Spent}}<a class="spent" href="{{if $vout.SpentTxID}}/tx/{{$vout.SpentTxID}}{{else}}/spending/{{$tx.Txid}}/{{$vout.N}}{{end}}" tt="Spent">→</a>{{else}}<span class="unspent" tt="Unspent">×</span>
