@@ -1,0 +1,69 @@
+{
+  "coin": {
+    "name": "Firo Testnet",
+    "shortcut": "FIRO",
+    "label": "Firo Testnet",
+    "alias": "firo_testnet"
+  },
+  "ports": {
+    "backend_rpc": 8050,
+    "backend_message_queue": 38350,
+    "blockbook_internal": 9050,
+    "blockbook_public": 9150
+  },
+  "ipc": {
+    "rpc_url_template": "http://127.0.0.1:{{.Ports.BackendRPC}}",
+    "rpc_user": "rpc",
+    "rpc_pass": "rpc",
+    "rpc_timeout": 25,
+    "message_queue_binding_template": "tcp://127.0.0.1:{{.Ports.BackendMessageQueue}}"
+  },
+  "backend": {
+    "package_name": "backend-firo-testnet",
+    "package_revision": "satoshilabs-1",
+    "system_user": "firo",
+    "version": "0.14.13.0",
+    "binary_url": "https://github.com/firoorg/firo/releases/download/v0.14.13.0/firo-0.14.13.0-linux64.tar.gz",
+    "verification_type": "sha256",
+    "verification_source": "cd35291658b7e1f8ed473d5d6d3325fc2b47acc61e787851752d3cfc32b30e3f",
+    "extract_command": "tar -C backend --strip 1 -xf",
+    "exclude_files": [
+      "bin/firo-qt",
+      "bin/firo-tx",
+      "README.md"
+    ],
+    "exec_command_template": "{{.Env.BackendInstallPath}}/{{.Coin.Alias}}/bin/firod -datadir={{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend -conf={{.Env.BackendInstallPath}}/{{.Coin.Alias}}/{{.Coin.Alias}}.conf -pid=/run/{{.Coin.Alias}}/{{.Coin.Alias}}.pid",
+    "logrotate_files_template": "{{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend/testnet3*.log",
+    "postinst_script_template": "",
+    "service_type": "forking",
+    "service_additional_params_template": "",
+    "protect_memory": true,
+    "mainnet": false,
+    "testnet": true,
+    "server_config_file": "bitcoin_like.conf",
+    "client_config_file": "bitcoin_like_client.conf",
+    "additional_params": {
+      "deprecatedrpc": "estimatefee"
+    }
+  },
+  "blockbook": {
+    "package_name": "blockbook-firo-testnet",
+    "system_user": "blockbook-firo-testnet",
+    "internal_binding_template": ":{{.Ports.BlockbookInternal}}",
+    "public_binding_template": ":{{.Ports.BlockbookPublic}}",
+    "explorer_url": "",
+    "additional_params": "",
+    "block_chain": {
+      "mempool_workers": 8,
+      "mempool_sub_workers": 2,
+      "block_addresses_to_keep": 300,
+      "xpub_magic": 76067358,
+      "slip44": 136,
+      "additional_params": {}
+    }
+  },
+  "meta": {
+    "package_maintainer": "Putta Khunchalee",
+    "package_maintainer_email": "putta@zcoin.io"
+  }
+}
