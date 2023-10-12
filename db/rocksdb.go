@@ -60,14 +60,14 @@ const (
 // RocksDB handle
 type RocksDB struct {
 	path          string
-	db            *gorocksdb.DB
-	wo            *gorocksdb.WriteOptions
-	ro            *gorocksdb.ReadOptions
-	cfh           []*gorocksdb.ColumnFamilyHandle
+	db            *grocksdb.DB
+	wo            *grocksdb.WriteOptions
+	ro            *grocksdb.ReadOptions
+	cfh           []*grocksdb.ColumnFamilyHandle
 	chainParser   bchain.BlockChainParser
 	is            *common.InternalState
 	metrics       *common.Metrics
-	cache         *gorocksdb.Cache
+	cache         *grocksdb.Cache
 	maxOpenFiles  int
 	cbs           connectBlockStats
 	spendingIndex bool
