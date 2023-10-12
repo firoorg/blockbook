@@ -230,7 +230,7 @@ type EthereumSpecific struct {
 	Error             string                                 `json:"error,omitempty"`
 	Nonce             uint64                                 `json:"nonce"`
 	GasLimit          *big.Int                               `json:"gasLimit"`
-	GasUsed           *big.Int                               `json:"gasUsed"`
+	GasUsed           *big.Int                               `json:"gasUsed,omitempty"`
 	GasPrice          *Amount                                `json:"gasPrice"`
 	Data              string                                 `json:"data,omitempty"`
 	ParsedData        *bchain.EthereumParsedInputData        `json:"parsedData,omitempty"`
@@ -326,6 +326,7 @@ type Address struct {
 	UnconfirmedBalanceSat *Amount              `json:"unconfirmedBalance"`
 	UnconfirmedTxs        int                  `json:"unconfirmedTxs"`
 	Txs                   int                  `json:"txs"`
+	AddrTxCount           int                  `json:"addrTxCount,omitempty"`
 	NonTokenTxs           int                  `json:"nonTokenTxs,omitempty"`
 	InternalTxs           int                  `json:"internalTxs,omitempty"`
 	Transactions          []*Tx                `json:"transactions,omitempty"`

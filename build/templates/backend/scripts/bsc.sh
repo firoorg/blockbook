@@ -30,7 +30,7 @@ $GETH_BIN \
   --ws.api eth,net,web3,debug,txpool \
   --ws.origins '*' \
   --syncmode full \
-  --maxpeers 100 \
+  --maxpeers 200 \
   --rpc.allow-unprotected-txs \
   --txlookuplimit 0 \
   --cache 8000 \

@@ -7,6 +7,7 @@ import (
 
 	"github.com/tkrajina/typescriptify-golang-structs/typescriptify"
 	"github.com/trezor/blockbook/api"
+	"github.com/trezor/blockbook/bchain"
 	"github.com/trezor/blockbook/server"
 )
 
@@ -18,7 +19,7 @@ func main() {
 
 	t.ManageType(api.Amount{}, typescriptify.TypeOptions{TSType: "string"})
 	t.ManageType([]api.Amount{}, typescriptify.TypeOptions{TSType: "string[]"})
-	t.ManageType(big.Int{}, typescriptify.TypeOptions{TSType: "string"})
+	t.ManageType(big.Int{}, typescriptify.TypeOptions{TSType: "number"})
 	t.ManageType(time.Time{}, typescriptify.TypeOptions{TSType: "string", TSDoc: "Time in ISO 8601 YYYY-MM-DDTHH:mm:ss.sssZd"})
 
 	// API - REST and Websocket
@@ -56,8 +57,10 @@ func main() {
 	t.Add(server.WsCurrentFiatRatesReq{})
 	t.Add(server.WsFiatRatesForTimestampsReq{})
 	t.Add(server.WsFiatRatesTickersListReq{})
+	t.Add(server.WsMempoolFiltersReq{})
+	t.Add(bchain.MempoolTxidFilterEntries{})
 
-	err := t.ConvertToFile("blockbook-api.d.ts")
+	err := t.ConvertToFile("blockbook-api.ts")
 	if err != nil {
 		panic(err.Error())
 	}

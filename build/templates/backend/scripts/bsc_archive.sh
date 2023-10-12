@@ -33,7 +33,7 @@ $GETH_BIN \
   --cache.gc 0 \
   --cache.trie 30 \
   --syncmode full \
-  --maxpeers 100 \
+  --maxpeers 200 \
   --rpc.allow-unprotected-txs \
   --txlookuplimit 0 \
   --cache 8000 \

@@ -30,8 +30,6 @@ type Network uint32
 const (
 	// MainNet is production network
 	MainNet Network = 1
-	// TestNet is Ropsten test network
-	TestNet Network = 3
 	// TestNetGoerli is Goerli test network
 	TestNetGoerli Network = 5
 	// TestNetSepolia is Sepolia test network
@@ -143,9 +141,6 @@ func (b *EthereumRPC) Initialize() error {
 	case MainNet:
 		b.Testnet = false
 		b.Network = "livenet"
-	case TestNet:
-		b.Testnet = true
-		b.Network = "testnet"
 	case TestNetGoerli:
 		b.Testnet = true
 		b.Network = "goerli"
@@ -653,8 +648,28 @@ func (b *EthereumRPC) getInternalDataForBlock(blockHash string, blockHeight uint
 			return data, contracts, err
 		}
 		if len(trace) != len(data) {
-			glog.Error("debug_traceBlockByHash block ", blockHash, ", error: trace length does not match block length ", len(trace), "!=", len(data))
-			return data, contracts, err
+			if len(trace) < len(data) {
+				for i := range transactions {
+					tx := &transactions[i]
+					// bridging transactions in Polygon do not create trace and cause mismatch between the trace size and block size, it is necessary to adjust the trace size
+					// bridging transaction that from and to zero address
+					if tx.To == "0x0000000000000000000000000000000000000000" && tx.From == "0x0000000000000000000000000000000000000000" {
+						if i >= len(trace) {
+							trace = append(trace, rpcTraceResult{})
+						} else {
+							trace = append(trace[:i+1], trace[i:]...)
+							trace[i] = rpcTraceResult{}
+						}
+					}
+				}
+			}
+			if len(trace) != len(data) {
+				e := fmt.Sprint("trace length does not match block length ", len(trace), "!=", len(data))
+				glog.Error("debug_traceBlockByHash block ", blockHash, ", error: ", e)
+				return data, contracts, errors.New(e)
+			} else {
+				glog.Warning("debug_traceBlockByHash block ", blockHash, ", trace adjusted to match the number of transactions in block")
+			}
 		}
 		for i, result := range trace {
 			r := &result.Result
