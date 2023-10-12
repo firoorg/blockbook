@@ -274,7 +274,7 @@ var requestHandlers = map[string]func(*WebsocketServer, *websocketChannel, *WsRe
 		return
 	},
 	"getBlock": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
-		if !s.is.ExtendedIndex {
+		if !s.is.SpendingIndex {
 			return nil, errors.New("Not supported")
 		}
 		r := WsBlockReq{}

@@ -84,7 +84,7 @@ var (
 	// resync mempool at least each resyncMempoolPeriodMs (could be more often if invoked by message from ZeroMQ)
 	resyncMempoolPeriodMs = flag.Int("resyncmempoolperiod", 60017, "resync mempool period in milliseconds")
 
-	extendedIndex = flag.Bool("spendingindex", false, "if true, create index of input txids and spending transactions")
+	spendingindex = flag.Bool("spendingindex", false, "if true, create index of input txids and spending transactions")
 )
 
 var (

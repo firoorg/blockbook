@@ -847,7 +847,7 @@ func (w *Worker) txFromTxAddress(txid string, ta *db.TxAddresses, bi *db.BlockIn
 		if err != nil {
 			glog.Errorf("tai.Addresses error %v, tx %v, input %v, tai %+v", err, txid, i, tai)
 		}
-		if w.db.HasExtendedIndex() {
+		if w.db.HasSpendingIndex() {
 			vin.Txid = tai.Txid
 			vin.Vout = tai.Vout
 		}

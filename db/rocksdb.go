@@ -206,7 +206,7 @@ func (d *RocksDB) WriteBatch(wb *grocksdb.WriteBatch) error {
 	return d.db.Write(d.wo, wb)
 }
 
-// HasExtendedIndex returns true if the DB indexes input txids and spending data
+// HasSpendingIndex returns true if the DB indexes input txids and spending data
 func (d *RocksDB) HasSpendingIndex() bool {
 	return d.spendingIndex
 }
@@ -602,7 +602,7 @@ func (d *RocksDB) processAddressesBitcoinType(block *bchain.Block, addresses add
 		}
 		blockTxIDs[txi] = btxID
 		ta := TxAddresses{Height: block.Height}
-		if d.extendedIndex {
+		if d.spendingIndex {
 			if tx.VSize > 0 {
 				ta.VSize = uint32(tx.VSize)
 			} else {
@@ -986,7 +986,7 @@ func (d *RocksDB) packTxAddresses(ta *TxAddresses, buf []byte, varBuf []byte) []
 	buf = buf[:0]
 	l := packVaruint(uint(ta.Height), varBuf)
 	buf = append(buf, varBuf[:l]...)
-	if d.extendedIndex {
+	if d.spendingIndex {
 		l = packVaruint(uint(ta.VSize), varBuf)
 		buf = append(buf, varBuf[:l]...)
 	}
@@ -1006,7 +1006,7 @@ func (d *RocksDB) packTxAddresses(ta *TxAddresses, buf []byte, varBuf []byte) []
 func (d *RocksDB) appendTxInput(txi *TxInput, buf []byte, varBuf []byte) []byte {
 	la := len(txi.AddrDesc)
 	var l int
-	if d.extendedIndex {
+	if d.spendingIndex {
 		if txi.Txid == "" {
 			// coinbase transaction
 			la = ^la
@@ -1131,7 +1131,7 @@ func (d *RocksDB) unpackTxAddresses(buf []byte) (*TxAddresses, error) {
 	ta := TxAddresses{}
 	height, l := unpackVaruint(buf)
 	ta.Height = uint32(height)
-	if d.extendedIndex {
+	if d.spendingIndex {
 		vsize, ll := unpackVaruint(buf[l:])
 		ta.VSize = uint32(vsize)
 		l += ll
@@ -1152,7 +1152,7 @@ func (d *RocksDB) unpackTxAddresses(buf []byte) (*TxAddresses, error) {
 }
 
 func (d *RocksDB) unpackTxInput(ti *TxInput, buf []byte) int {
-	if d.extendedIndex {
+	if d.spendingIndex {
 		al, l := unpackVarint(buf)
 		var coinbase bool
 		if al < 0 {
