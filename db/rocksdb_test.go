@@ -1079,7 +1079,7 @@ func Test_packTxAddresses_unpackTxAddresses(t *testing.T) {
 		},
 		{
 			name: "spendingIndex empty address",
-			hex:  "baef9a1501000204d2020002162e010162fdd824a780cbb718eeb766eb05d83fdefc793a27082cd5e67f856d69798cf7db03e039",
+			hex:  "baef9a152d01010204d2020002162e010162fdd824a780cbb718eeb766eb05d83fdefc793a27082cd5e67f856d69798cf7db03e039",
 			data: &TxAddresses{
 				Height: 123456789,
 				VSize:  45,
