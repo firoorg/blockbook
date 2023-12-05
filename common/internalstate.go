@@ -92,6 +92,15 @@ type InternalState struct {
 	// database migrations
 	UtxoChecked            bool `json:"utxoChecked"`
 	SortedAddressContracts bool `json:"sortedAddressContracts"`
+
+	// golomb filter settings
+	BlockGolombFilterP      uint8  `json:"block_golomb_filter_p"`
+	BlockFilterScripts      string `json:"block_filter_scripts"`
+	BlockFilterUseZeroedKey bool   `json:"block_filter_use_zeroed_key"`
+
+	// allowed number of fetched accounts over websocket
+	WsGetAccountInfoLimit int            `json:"-"`
+	WsLimitExceedingIPs   map[string]int `json:"-"`
 }
 
 // StartedSync signals start of synchronization
@@ -335,4 +344,16 @@ func SetInShutdown() {
 // IsInShutdown returns true if in application shutdown state
 func IsInShutdown() bool {
 	return atomic.LoadInt32(&inShutdown) != 0
+}
+
+func (is *InternalState) AddWsLimitExceedingIP(ip string) {
+	is.mux.Lock()
+	defer is.mux.Unlock()
+	is.WsLimitExceedingIPs[ip] = is.WsLimitExceedingIPs[ip] + 1
+}
+
+func (is *InternalState) ResetWsLimitExceedingIPs() {
+	is.mux.Lock()
+	defer is.mux.Unlock()
+	is.WsLimitExceedingIPs = make(map[string]int)
 }
