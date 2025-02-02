@@ -10,6 +10,7 @@
         "backend_message_queue": 0,
         "backend_p2p": 48386,
         "backend_http": 18186,
+        "backend_torrent": 18186,
         "backend_authrpc": 18586,
         "blockbook_internal": 19086,
         "blockbook_public": 19186
@@ -22,13 +23,13 @@
         "package_name": "backend-ethereum-testnet-sepolia-archive",
         "package_revision": "satoshilabs-1",
         "system_user": "ethereum",
-        "version": "1.12.0-e501b3b0",
-        "binary_url": "https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.12.0-e501b3b0.tar.gz",
-        "verification_type": "gpg",
-        "verification_source": "https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.12.0-e501b3b0.tar.gz.asc",
-        "extract_command": "tar -C backend --strip 1 -xf",
+        "version": "2.60.10",
+        "binary_url": "https://github.com/ledgerwatch/erigon/releases/download/v2.60.10/erigon_v2.60.10_linux_amd64.tar.gz",
+        "verification_type": "sha256",
+        "verification_source": "e22dc039846f2aee3d180b1dfb7d1b8282377d76ab4654137ed4abfec5d8e2af",
+        "extract_command": "tar -C backend --strip-components=1 -xf",
         "exclude_files": [],
-        "exec_command_template": "/bin/sh -c '{{.Env.BackendInstallPath}}/{{.Coin.Alias}}/geth --sepolia --syncmode full --gcmode archive --txlookuplimit 0 --ipcdisable --cache 1024 --nat none --datadir {{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend --port {{.Ports.BackendP2P}} --ws --ws.addr 127.0.0.1 --ws.port {{.Ports.BackendRPC}} --ws.origins \"*\" --ws.api \"eth,net,web3,debug,txpool\" --http --http.port {{.Ports.BackendHttp}} -http.addr 127.0.0.1 --http.corsdomain \"*\" --http.vhosts \"*\" --http.api \"eth,net,web3,debug,txpool\" --authrpc.port {{.Ports.BackendAuthRpc}} 2>>{{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend/{{.Coin.Alias}}.log'",
+        "exec_command_template": "/bin/sh -c '{{.Env.BackendInstallPath}}/{{.Coin.Alias}}/erigon --chain sepolia --snap.keepblocks --db.size.limit 15TB --prune c --prune.c.older 1000000 -torrent.download.rate 32mb --nat none --datadir {{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend/erigon --port {{.Ports.BackendP2P}} --ws --ws.port {{.Ports.BackendRPC}} --http --http.port {{.Ports.BackendRPC}} --http.addr 127.0.0.1 --http.corsdomain \"*\" --http.vhosts \"*\" --http.api \"eth,net,web3,debug,txpool\" --authrpc.port {{.Ports.BackendAuthRpc}} --private.api.addr \"\" --torrent.port {{.Ports.BackendHttp}} --log.dir.path {{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend --log.dir.prefix {{.Coin.Alias}}'",
         "logrotate_files_template": "{{.Env.BackendDataPath}}/{{.Coin.Alias}}/backend/{{.Coin.Alias}}.log",
         "postinst_script_template": "",
         "service_type": "simple",
@@ -39,8 +40,8 @@
         "client_config_file": "",
         "platforms": {
             "arm64": {
-                "binary_url": "https://gethstore.blob.core.windows.net/builds/geth-linux-arm64-1.12.0-e501b3b0.tar.gz",
-                "verification_source": "https://gethstore.blob.core.windows.net/builds/geth-linux-arm64-1.12.0-e501b3b0.tar.gz.asc"
+                "binary_url": "https://github.com/ledgerwatch/erigon/releases/download/v2.60.10/erigon_v2.60.10_linux_arm64.tar.gz",
+                "verification_source": "68cb9baf937d19446de91bc1efccf389b4a2452233b3a5ef1cf5cd8a91b9ce95"
             }
         }
     },

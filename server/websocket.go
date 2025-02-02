@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -36,14 +37,16 @@ var (
 )
 
 type websocketChannel struct {
-	id            uint64
-	conn          *websocket.Conn
-	out           chan *WsRes
-	ip            string
-	requestHeader http.Header
-	alive         bool
-	aliveLock     sync.Mutex
-	addrDescs     []string // subscribed address descriptors as strings
+	id                           uint64
+	conn                         *websocket.Conn
+	out                          chan *WsRes
+	ip                           string
+	requestHeader                http.Header
+	alive                        bool
+	aliveLock                    sync.Mutex
+	addrDescs                    []string // subscribed address descriptors as strings
+	getAddressInfoDescriptorsMux sync.Mutex
+	getAddressInfoDescriptors    map[string]struct{}
 }
 
 // WebsocketServer is a handle to websocket server
@@ -68,6 +71,7 @@ type WebsocketServer struct {
 	fiatRatesSubscriptions          map[string]map[*websocketChannel]string
 	fiatRatesTokenSubscriptions     map[*websocketChannel][]string
 	fiatRatesSubscriptionsLock      sync.Mutex
+	allowedRpcCallTo                map[string]struct{}
 }
 
 // NewWebsocketServer creates new websocket interface to blockbook and returns its handle
@@ -82,9 +86,10 @@ func NewWebsocketServer(db *db.RocksDB, chain bchain.BlockChain, mempool bchain.
 	}
 	s := &WebsocketServer{
 		upgrader: &websocket.Upgrader{
-			ReadBufferSize:  1024 * 32,
-			WriteBufferSize: 1024 * 32,
-			CheckOrigin:     checkOrigin,
+			ReadBufferSize:    1024 * 32,
+			WriteBufferSize:   1024 * 32,
+			CheckOrigin:       checkOrigin,
+			EnableCompression: true,
 		},
 		db:                          db,
 		txCache:                     txCache,
@@ -102,6 +107,14 @@ func NewWebsocketServer(db *db.RocksDB, chain bchain.BlockChain, mempool bchain.
 		fiatRatesSubscriptions:      make(map[string]map[*websocketChannel]string),
 		fiatRatesTokenSubscriptions: make(map[*websocketChannel][]string),
 	}
+	envRpcCall := os.Getenv(strings.ToUpper(is.GetNetwork()) + "_ALLOWED_RPC_CALL_TO")
+	if envRpcCall != "" {
+		s.allowedRpcCallTo = make(map[string]struct{})
+		for _, c := range strings.Split(envRpcCall, ",") {
+			s.allowedRpcCallTo[strings.ToLower(c)] = struct{}{}
+		}
+		glog.Info("Support of rpcCall for these contracts: ", envRpcCall)
+	}
 	return s, nil
 }
 
@@ -111,7 +124,11 @@ func checkOrigin(r *http.Request) bool {
 }
 
 func getIP(r *http.Request) string {
-	ip := r.Header.Get("X-Real-Ip")
+	ip := r.Header.Get("cf-connecting-ip")
+	if ip != "" {
+		return ip
+	}
+	ip = r.Header.Get("X-Real-Ip")
 	if ip != "" {
 		return ip
 	}
@@ -121,12 +138,12 @@ func getIP(r *http.Request) string {
 // ServeHTTP sets up handler of websocket channel
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
-		http.Error(w, upgradeFailed+ErrorMethodNotAllowed.Error(), 503)
+		http.Error(w, upgradeFailed+ErrorMethodNotAllowed.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		http.Error(w, upgradeFailed+err.Error(), 503)
+		http.Error(w, upgradeFailed+err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	c := &websocketChannel{
@@ -136,6 +153,9 @@ func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ip:            getIP(r),
 		requestHeader: r.Header,
 		alive:         true,
+	}
+	if s.is.WsGetAccountInfoLimit > 0 {
+		c.getAddressInfoDescriptors = make(map[string]struct{})
 	}
 	go s.inputLoop(c)
 	go s.outputLoop(c)
@@ -147,11 +167,13 @@ func (s *WebsocketServer) GetHandler() http.Handler {
 	return s
 }
 
-func (s *WebsocketServer) closeChannel(c *websocketChannel) {
+func (s *WebsocketServer) closeChannel(c *websocketChannel) bool {
 	if c.CloseOut() {
 		c.conn.Close()
 		s.onDisconnect(c)
+		return true
 	}
+	return false
 }
 
 func (c *websocketChannel) CloseOut() bool {
@@ -258,6 +280,19 @@ var requestHandlers = map[string]func(*WebsocketServer, *websocketChannel, *WsRe
 	"getAccountInfo": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
 		r, err := unmarshalGetAccountInfoRequest(req.Params)
 		if err == nil {
+			if s.is.WsGetAccountInfoLimit > 0 {
+				c.getAddressInfoDescriptorsMux.Lock()
+				c.getAddressInfoDescriptors[r.Descriptor] = struct{}{}
+				l := len(c.getAddressInfoDescriptors)
+				c.getAddressInfoDescriptorsMux.Unlock()
+				if l > s.is.WsGetAccountInfoLimit {
+					if s.closeChannel(c) {
+						glog.Info("Client ", c.id, " exceeded getAddressInfo limit, ", c.ip)
+						s.is.AddWsLimitExceedingIP(c.ip)
+					}
+					return
+				}
+			}
 			rv, err = s.getAccountInfo(r)
 		}
 		return
@@ -350,6 +385,30 @@ var requestHandlers = map[string]func(*WebsocketServer, *websocketChannel, *WsRe
 		}
 		return
 	},
+	"getBlockFilter": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
+		r := WsBlockFilterReq{}
+		err = json.Unmarshal(req.Params, &r)
+		if err == nil {
+			rv, err = s.getBlockFilter(&r)
+		}
+		return
+	},
+	"getBlockFiltersBatch": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
+		r := WsBlockFiltersBatchReq{}
+		err = json.Unmarshal(req.Params, &r)
+		if err == nil {
+			rv, err = s.getBlockFiltersBatch(&r)
+		}
+		return
+	},
+	"rpcCall": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
+		r := WsRpcCallReq{}
+		err = json.Unmarshal(req.Params, &r)
+		if err == nil {
+			rv, err = s.rpcCall(&r)
+		}
+		return
+	},
 	"subscribeNewBlock": func(s *WebsocketServer, c *websocketChannel, req *WsReq) (rv interface{}, err error) {
 		return s.subscribeNewBlock(c, req)
 	},
@@ -439,7 +498,9 @@ func (s *WebsocketServer) onRequest(c *websocketChannel, req *WsReq) {
 	}()
 	t := time.Now()
 	s.metrics.WebsocketPendingRequests.With((common.Labels{"method": req.Method})).Inc()
-	defer s.metrics.WebsocketReqDuration.With(common.Labels{"method": req.Method}).Observe(float64(time.Since(t)) / 1e3) // in microseconds
+	defer func() {
+		s.metrics.WebsocketReqDuration.With(common.Labels{"method": req.Method}).Observe(float64(time.Since(t)) / 1e3) // in microseconds
+	}()
 	f, ok := requestHandlers[req.Method]
 	if ok {
 		data, err = f(s, c, req)
@@ -537,6 +598,7 @@ func (s *WebsocketServer) getInfo() (*WsInfoRes, error) {
 	return &WsInfoRes{
 		Name:       s.is.Coin,
 		Shortcut:   s.is.CoinShortcut,
+		Network:    s.is.GetNetwork(),
 		Decimals:   s.chainParser.AmountDecimals(),
 		BestHeight: int(height),
 		BestHash:   hash,
@@ -640,9 +702,81 @@ func (s *WebsocketServer) sendTransaction(tx string) (res resultSendTransaction,
 	return
 }
 
-func (s *WebsocketServer) getMempoolFilters(r *WsMempoolFiltersReq) (res bchain.MempoolTxidFilterEntries, err error) {
-	res, err = s.mempool.GetTxidFilterEntries(r.ScriptType, r.FromTimestamp)
-	return
+func (s *WebsocketServer) getMempoolFilters(r *WsMempoolFiltersReq) (res interface{}, err error) {
+	type resMempoolFilters struct {
+		ParamP    uint8             `json:"P"`
+		ParamM    uint64            `json:"M"`
+		ZeroedKey bool              `json:"zeroedKey"`
+		Entries   map[string]string `json:"entries"`
+	}
+	filterEntries, err := s.mempool.GetTxidFilterEntries(r.ScriptType, r.FromTimestamp)
+	if err != nil {
+		return nil, err
+	}
+	return resMempoolFilters{
+		ParamP:    s.is.BlockGolombFilterP,
+		ParamM:    bchain.GetGolombParamM(s.is.BlockGolombFilterP),
+		ZeroedKey: filterEntries.UsedZeroedKey,
+		Entries:   filterEntries.Entries,
+	}, nil
+}
+
+func (s *WebsocketServer) getBlockFilter(r *WsBlockFilterReq) (res interface{}, err error) {
+	type resBlockFilter struct {
+		ParamP      uint8  `json:"P"`
+		ParamM      uint64 `json:"M"`
+		ZeroedKey   bool   `json:"zeroedKey"`
+		BlockFilter string `json:"blockFilter"`
+	}
+	if s.is.BlockFilterScripts != r.ScriptType {
+		return nil, errors.Errorf("Unsupported script type %s", r.ScriptType)
+	}
+	blockFilter, err := s.db.GetBlockFilter(r.BlockHash)
+	if err != nil {
+		return nil, err
+	}
+	return resBlockFilter{
+		ParamP:      s.is.BlockGolombFilterP,
+		ParamM:      bchain.GetGolombParamM(s.is.BlockGolombFilterP),
+		ZeroedKey:   s.is.BlockFilterUseZeroedKey,
+		BlockFilter: blockFilter,
+	}, nil
+}
+
+func (s *WebsocketServer) getBlockFiltersBatch(r *WsBlockFiltersBatchReq) (res interface{}, err error) {
+	type resBlockFiltersBatch struct {
+		ParamP            uint8    `json:"P"`
+		ParamM            uint64   `json:"M"`
+		ZeroedKey         bool     `json:"zeroedKey"`
+		BlockFiltersBatch []string `json:"blockFiltersBatch"`
+	}
+	if s.is.BlockFilterScripts != r.ScriptType {
+		return nil, errors.Errorf("Unsupported script type %s", r.ScriptType)
+	}
+	blockFiltersBatch, err := s.api.GetBlockFiltersBatch(r.BlockHash, r.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	return resBlockFiltersBatch{
+		ParamP:            s.is.BlockGolombFilterP,
+		ParamM:            bchain.GetGolombParamM(s.is.BlockGolombFilterP),
+		ZeroedKey:         s.is.BlockFilterUseZeroedKey,
+		BlockFiltersBatch: blockFiltersBatch,
+	}, nil
+}
+
+func (s *WebsocketServer) rpcCall(r *WsRpcCallReq) (*WsRpcCallRes, error) {
+	if s.allowedRpcCallTo != nil {
+		_, ok := s.allowedRpcCallTo[strings.ToLower(r.To)]
+		if !ok {
+			return nil, errors.New("Not supported")
+		}
+	}
+	data, err := s.chain.EthereumTypeRpcCall(r.Data, r.To, r.From)
+	if err != nil {
+		return nil, err
+	}
+	return &WsRpcCallRes{Data: data}, nil
 }
 
 type subscriptionResponse struct {

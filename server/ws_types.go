@@ -36,6 +36,7 @@ type WsBackendInfo struct {
 type WsInfoRes struct {
 	Name       string        `json:"name"`
 	Shortcut   string        `json:"shortcut"`
+	Network    string        `json:"network"`
 	Decimals   int           `json:"decimals"`
 	Version    string        `json:"version"`
 	BestHeight int           `json:"bestHeight"`
@@ -79,6 +80,20 @@ type WsTransactionReq struct {
 type WsMempoolFiltersReq struct {
 	ScriptType    string `json:"scriptType"`
 	FromTimestamp uint32 `json:"fromTimestamp"`
+	ParamM        uint64 `json:"M,omitempty"`
+}
+
+type WsBlockFilterReq struct {
+	ScriptType string `json:"scriptType"`
+	BlockHash  string `json:"blockHash"`
+	ParamM     uint64 `json:"M,omitempty"`
+}
+
+type WsBlockFiltersBatchReq struct {
+	ScriptType string `json:"scriptType"`
+	BlockHash  string `json:"bestKnownBlockHash"`
+	PageSize   int    `json:"pageSize,omitempty"`
+	ParamM     uint64 `json:"M,omitempty"`
 }
 
 type WsTransactionSpecificReq struct {
@@ -122,4 +137,14 @@ type WsFiatRatesForTimestampsReq struct {
 type WsFiatRatesTickersListReq struct {
 	Timestamp int64  `json:"timestamp,omitempty"`
 	Token     string `json:"token,omitempty"`
+}
+
+type WsRpcCallReq struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to"`
+	Data string `json:"data"`
+}
+
+type WsRpcCallRes struct {
+	Data string `json:"data"`
 }

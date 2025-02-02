@@ -57,6 +57,7 @@ type Vin struct {
 	ScriptSig ScriptSig `json:"scriptSig"`
 	Sequence  uint32    `json:"sequence"`
 	Addresses []string  `json:"addresses"`
+	Witness   [][]byte  `json:"-"`
 }
 
 // ScriptPubKey contains data about output script
@@ -130,7 +131,8 @@ type TokenTypeName string
 
 // Token types
 const (
-	UnknownTokenType TokenTypeName = ""
+	UnknownTokenType   TokenTypeName = ""
+	UnhandledTokenType TokenTypeName = "-"
 
 	// XPUBAddressTokenType is address derived from xpub
 	XPUBAddressTokenType TokenTypeName = "XPUBAddress"
@@ -236,6 +238,13 @@ func (ad AddressDescriptor) String() string {
 	return "ad:" + hex.EncodeToString(ad)
 }
 
+func (ad AddressDescriptor) IsTaproot() bool {
+	if len(ad) == 34 && ad[0] == 0x51 && ad[1] == 0x20 {
+		return true
+	}
+	return false
+}
+
 // AddressDescriptorFromString converts string created by AddressDescriptor.String to AddressDescriptor
 func AddressDescriptorFromString(s string) (AddressDescriptor, error) {
 	if len(s) > 3 && s[0:3] == "ad:" {
@@ -276,8 +285,10 @@ type XpubDescriptor struct {
 type MempoolTxidEntries []MempoolTxidEntry
 
 // MempoolTxidFilterEntries is a map of txids to mempool golomb filters
+// Also contains a flag whether constant zeroed key was used when calculating the filters
 type MempoolTxidFilterEntries struct {
-	Entries map[string]string `json:"entries,omitempty"`
+	Entries       map[string]string `json:"entries,omitempty"`
+	UsedZeroedKey bool              `json:"usedZeroedKey,omitempty"`
 }
 
 // OnNewBlockFunc is used to send notification about a new block
@@ -333,6 +344,10 @@ type BlockChain interface {
 	EthereumTypeGetNonce(addrDesc AddressDescriptor) (uint64, error)
 	EthereumTypeEstimateGas(params map[string]interface{}) (uint64, error)
 	EthereumTypeGetErc20ContractBalance(addrDesc, contractDesc AddressDescriptor) (*big.Int, error)
+	EthereumTypeGetSupportedStakingPools() []string
+	EthereumTypeGetStakingPoolsData(addrDesc AddressDescriptor) ([]StakingPoolData, error)
+	EthereumTypeRpcCall(data, to, from string) (string, error)
+	EthereumTypeGetRawTransaction(txid string) (string, error)
 	GetTokenURI(contractDesc AddressDescriptor, tokenID *big.Int) (string, error)
 }
 
