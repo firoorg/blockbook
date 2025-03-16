@@ -59,25 +59,27 @@ type EthereumInternalData struct {
 
 // ContractInfo contains info about a contract
 type ContractInfo struct {
-	Type              TokenTypeName `json:"type"`
-	Contract          string        `json:"contract"`
-	Name              string        `json:"name"`
-	Symbol            string        `json:"symbol"`
-	Decimals          int           `json:"decimals"`
-	CreatedInBlock    uint32        `json:"createdInBlock,omitempty"`
-	DestructedInBlock uint32        `json:"destructedInBlock,omitempty"`
+	// Deprecated: Use Standard instead.
+	Type              TokenStandardName `json:"type" ts_type:"'' | 'XPUBAddress' | 'ERC20' | 'ERC721' | 'ERC1155' | 'BEP20' | 'BEP721' | 'BEP1155'" ts_doc:"@deprecated: Use standard instead."`
+	Standard          TokenStandardName `json:"standard" ts_type:"'' | 'XPUBAddress' | 'ERC20' | 'ERC721' | 'ERC1155' | 'BEP20' | 'BEP721' | 'BEP1155'"`
+	Contract          string            `json:"contract"`
+	Name              string            `json:"name"`
+	Symbol            string            `json:"symbol"`
+	Decimals          int               `json:"decimals"`
+	CreatedInBlock    uint32            `json:"createdInBlock,omitempty"`
+	DestructedInBlock uint32            `json:"destructedInBlock,omitempty"`
 }
 
-// Ethereum token type names
+// Ethereum token standard names
 const (
-	ERC20TokenType   TokenTypeName = "ERC20"
-	ERC771TokenType  TokenTypeName = "ERC721"
-	ERC1155TokenType TokenTypeName = "ERC1155"
+	ERC20TokenStandard   TokenStandardName = "ERC20"
+	ERC771TokenStandard  TokenStandardName = "ERC721"
+	ERC1155TokenStandard TokenStandardName = "ERC1155"
 )
 
-// EthereumTokenTypeMap maps bchain.TokenType to TokenTypeName
-// the map must match all bchain.TokenType to avoid index out of range panic
-var EthereumTokenTypeMap = []TokenTypeName{ERC20TokenType, ERC771TokenType, ERC1155TokenType}
+// EthereumTokenStandardMap maps bchain.TokenStandard to TokenStandardName
+// the map must match all bchain.TokenStandard to avoid index out of range panic
+var EthereumTokenStandardMap = []TokenStandardName{ERC20TokenStandard, ERC771TokenStandard, ERC1155TokenStandard}
 
 type MultiTokenValue struct {
 	Id    big.Int
@@ -86,7 +88,7 @@ type MultiTokenValue struct {
 
 // TokenTransfer contains a single token transfer
 type TokenTransfer struct {
-	Type             TokenType
+	Standard         TokenStandard
 	Contract         string
 	From             string
 	To               string
@@ -122,9 +124,13 @@ type RpcLog struct {
 
 // RpcLog is returned by eth_getTransactionReceipt
 type RpcReceipt struct {
-	GasUsed string    `json:"gasUsed"`
-	Status  string    `json:"status"`
-	Logs    []*RpcLog `json:"logs"`
+	GasUsed     string    `json:"gasUsed"`
+	Status      string    `json:"status"`
+	Logs        []*RpcLog `json:"logs"`
+	L1Fee       string    `json:"l1Fee,omitempty"`
+	L1FeeScalar string    `json:"l1FeeScalar,omitempty"`
+	L1GasPrice  string    `json:"l1GasPrice,omitempty"`
+	L1GasUsed   string    `json:"l1GasUsed,omitempty"`
 }
 
 // EthereumSpecificData contains data specific to Ethereum transactions
@@ -145,4 +151,40 @@ type EthereumBlockSpecificData struct {
 	InternalDataError   string
 	AddressAliasRecords []AddressAliasRecord
 	Contracts           []ContractInfo
+}
+
+// StakingPool holds data about address participation in a staking pool contract
+type StakingPoolData struct {
+	Contract                string  `json:"contract"`
+	Name                    string  `json:"name"`
+	PendingBalance          big.Int `json:"pendingBalance"`          // pendingBalanceOf method
+	PendingDepositedBalance big.Int `json:"pendingDepositedBalance"` // pendingDepositedBalanceOf method
+	DepositedBalance        big.Int `json:"depositedBalance"`        // depositedBalanceOf method
+	WithdrawTotalAmount     big.Int `json:"withdrawTotalAmount"`     // withdrawRequest method, return value [0]
+	ClaimableAmount         big.Int `json:"claimableAmount"`         // withdrawRequest method, return value [1]
+	RestakedReward          big.Int `json:"restakedReward"`          // restakedRewardOf method
+	AutocompoundBalance     big.Int `json:"autocompoundBalance"`     // autocompoundBalanceOf method
+}
+
+// Eip1559Fee
+type Eip1559Fee struct {
+	MaxFeePerGas         *big.Int `json:"maxFeePerGas"`
+	MaxPriorityFeePerGas *big.Int `json:"maxPriorityFeePerGas"`
+	MinWaitTimeEstimate  int      `json:"minWaitTimeEstimate,omitempty"`
+	MaxWaitTimeEstimate  int      `json:"maxWaitTimeEstimate,omitempty"`
+}
+
+// Eip1559Fees
+type Eip1559Fees struct {
+	BaseFeePerGas              *big.Int    `json:"baseFeePerGas,omitempty"`
+	Low                        *Eip1559Fee `json:"low,omitempty"`
+	Medium                     *Eip1559Fee `json:"medium,omitempty"`
+	High                       *Eip1559Fee `json:"high,omitempty"`
+	Instant                    *Eip1559Fee `json:"instant,omitempty"`
+	NetworkCongestion          float64     `json:"networkCongestion,omitempty"`
+	LatestPriorityFeeRange     []*big.Int  `json:"latestPriorityFeeRange,omitempty"`
+	HistoricalPriorityFeeRange []*big.Int  `json:"historicalPriorityFeeRange,omitempty"`
+	HistoricalBaseFeeRange     []*big.Int  `json:"historicalBaseFeeRange,omitempty"`
+	PriorityFeeTrend           string      `json:"priorityFeeTrend,omitempty"`
+	BaseFeeTrend               string      `json:"baseFeeTrend,omitempty"`
 }

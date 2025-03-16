@@ -57,6 +57,7 @@ type InternalState struct {
 	CoinShortcut string `json:"coinShortcut"`
 	CoinLabel    string `json:"coinLabel"`
 	Host         string `json:"host"`
+	Network      string `json:"network,omitempty"`
 
 	DbState       uint32 `json:"dbState"`
 	SpendingIndex bool   `json:"spendingIndex"`
@@ -92,6 +93,15 @@ type InternalState struct {
 	// database migrations
 	UtxoChecked            bool `json:"utxoChecked"`
 	SortedAddressContracts bool `json:"sortedAddressContracts"`
+
+	// golomb filter settings
+	BlockGolombFilterP      uint8  `json:"block_golomb_filter_p"`
+	BlockFilterScripts      string `json:"block_filter_scripts"`
+	BlockFilterUseZeroedKey bool   `json:"block_filter_use_zeroed_key"`
+
+	// allowed number of fetched accounts over websocket
+	WsGetAccountInfoLimit int            `json:"-"`
+	WsLimitExceedingIPs   map[string]int `json:"-"`
 }
 
 // StartedSync signals start of synchronization
@@ -230,17 +240,29 @@ func (is *InternalState) GetLastBlockTime() uint32 {
 func (is *InternalState) SetBlockTimes(blockTimes []uint32) uint32 {
 	is.mux.Lock()
 	defer is.mux.Unlock()
-	is.BlockTimes = blockTimes
+	if len(is.BlockTimes) < len(blockTimes) {
+		// no new block was set
+		is.BlockTimes = blockTimes
+	} else {
+		copy(is.BlockTimes, blockTimes)
+	}
 	is.computeAvgBlockPeriod()
 	glog.Info("set ", len(is.BlockTimes), " block times, average block period ", is.AvgBlockPeriod, "s")
 	return is.AvgBlockPeriod
 }
 
-// AppendBlockTime appends block time to BlockTimes, returns AvgBlockPeriod
-func (is *InternalState) AppendBlockTime(time uint32) uint32 {
+// SetBlockTime sets block time to BlockTimes, allocating the slice as necessary, returns AvgBlockPeriod
+func (is *InternalState) SetBlockTime(height uint32, time uint32) uint32 {
 	is.mux.Lock()
 	defer is.mux.Unlock()
-	is.BlockTimes = append(is.BlockTimes, time)
+	if int(height) >= len(is.BlockTimes) {
+		extend := int(height) - len(is.BlockTimes) + 1
+		for i := 0; i < extend; i++ {
+			is.BlockTimes = append(is.BlockTimes, time)
+		}
+	} else {
+		is.BlockTimes[height] = time
+	}
 	is.computeAvgBlockPeriod()
 	return is.AvgBlockPeriod
 }
@@ -296,6 +318,15 @@ func (is *InternalState) computeAvgBlockPeriod() {
 	is.AvgBlockPeriod = (is.BlockTimes[last] - is.BlockTimes[first]) / avgBlockPeriodSample
 }
 
+// GetNetwork returns network. If not set returns the same value as CoinShortcut
+func (is *InternalState) GetNetwork() string {
+	network := is.Network
+	if network == "" {
+		return is.CoinShortcut
+	}
+	return network
+}
+
 // SetBackendInfo sets new BackendInfo
 func (is *InternalState) SetBackendInfo(bi *BackendInfo) {
 	is.mux.Lock()
@@ -335,4 +366,16 @@ func SetInShutdown() {
 // IsInShutdown returns true if in application shutdown state
 func IsInShutdown() bool {
 	return atomic.LoadInt32(&inShutdown) != 0
+}
+
+func (is *InternalState) AddWsLimitExceedingIP(ip string) {
+	is.mux.Lock()
+	defer is.mux.Unlock()
+	is.WsLimitExceedingIPs[ip] = is.WsLimitExceedingIPs[ip] + 1
+}
+
+func (is *InternalState) ResetWsLimitExceedingIPs() {
+	is.mux.Lock()
+	defer is.mux.Unlock()
+	is.WsLimitExceedingIPs = make(map[string]int)
 }
