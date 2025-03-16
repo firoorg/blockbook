@@ -147,6 +147,16 @@ func (a TokenTransfers) Less(i, j int) bool {
 	return a[i].Standard < a[j].Standard
 }
 
+// VinValues contains information about single transaction input with value
+type VinValues struct {
+	Value common.JSONNumber `json:"value"`
+}
+
+// TxForInValues containing inputs with values
+type TxForInValues struct {
+	Vin []VinValues `json:"vin"`
+}
+
 // Block is block header and list of transactions
 type Block struct {
 	BlockHeader
