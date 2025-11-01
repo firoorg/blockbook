@@ -98,6 +98,8 @@ func (b *AvalancheRPC) Initialize() error {
 		return errors.Errorf("Unknown network id %v", id)
 	}
 
+	b.InitAlternativeProviders()
+
 	glog.Info("rpc: block chain ", b.Network)
 
 	return nil
@@ -121,12 +123,10 @@ func (b *AvalancheRPC) GetChainInfo() (*bchain.ChainInfo, error) {
 		VMVersions         map[string]string `json:"vmVersions"`
 	}
 
-	if err := b.info.CallContext(ctx, &v, "info.getNodeVersion"); err != nil {
-		return nil, err
-	}
-
-	if avm, ok := v.VMVersions["avm"]; ok {
-		ci.Version = avm
+	if err := b.info.CallContext(ctx, &v, "info.getNodeVersion"); err == nil {
+		if avm, ok := v.VMVersions["avm"]; ok {
+			ci.Version = avm
+		}
 	}
 
 	return ci, nil

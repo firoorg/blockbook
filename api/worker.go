@@ -474,17 +474,20 @@ func (w *Worker) getTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 			valOutSat = bchainTx.Vout[0].ValueSat
 		}
 		ethSpecific = &EthereumSpecific{
-			GasLimit:    ethTxData.GasLimit,
-			GasPrice:    (*Amount)(ethTxData.GasPrice),
-			GasUsed:     ethTxData.GasUsed,
-			L1Fee:       ethTxData.L1Fee,
-			L1FeeScalar: ethTxData.L1FeeScalar,
-			L1GasPrice:  (*Amount)(ethTxData.L1GasPrice),
-			L1GasUsed:   ethTxData.L1GasUsed,
-			Nonce:       ethTxData.Nonce,
-			Status:      ethTxData.Status,
-			Data:        ethTxData.Data,
-			ParsedData:  parsedInputData,
+			GasLimit:             ethTxData.GasLimit,
+			GasPrice:             (*Amount)(ethTxData.GasPrice),
+			MaxPriorityFeePerGas: (*Amount)(ethTxData.MaxPriorityFeePerGas),
+			MaxFeePerGas:         (*Amount)(ethTxData.MaxFeePerGas),
+			BaseFeePerGas:        (*Amount)(ethTxData.BaseFeePerGas),
+			GasUsed:              ethTxData.GasUsed,
+			L1Fee:                ethTxData.L1Fee,
+			L1FeeScalar:          ethTxData.L1FeeScalar,
+			L1GasPrice:           (*Amount)(ethTxData.L1GasPrice),
+			L1GasUsed:            ethTxData.L1GasUsed,
+			Nonce:                ethTxData.Nonce,
+			Status:               ethTxData.Status,
+			Data:                 ethTxData.Data,
+			ParsedData:           parsedInputData,
 		}
 		if internalData != nil {
 			ethSpecific.Type = internalData.Type
@@ -615,12 +618,15 @@ func (w *Worker) GetTransactionFromMempoolTx(mempoolTx *bchain.MempoolTx) (*Tx, 
 		tokens = w.getEthereumTokensTransfers(mempoolTx.TokenTransfers, addresses)
 		ethTxData := eth.GetEthereumTxDataFromSpecificData(mempoolTx.CoinSpecificData)
 		ethSpecific = &EthereumSpecific{
-			GasLimit: ethTxData.GasLimit,
-			GasPrice: (*Amount)(ethTxData.GasPrice),
-			GasUsed:  ethTxData.GasUsed,
-			Nonce:    ethTxData.Nonce,
-			Status:   ethTxData.Status,
-			Data:     ethTxData.Data,
+			GasLimit:             ethTxData.GasLimit,
+			GasPrice:             (*Amount)(ethTxData.GasPrice),
+			MaxPriorityFeePerGas: (*Amount)(ethTxData.MaxPriorityFeePerGas),
+			MaxFeePerGas:         (*Amount)(ethTxData.MaxFeePerGas),
+			BaseFeePerGas:        (*Amount)(ethTxData.BaseFeePerGas),
+			GasUsed:              ethTxData.GasUsed,
+			Nonce:                ethTxData.Nonce,
+			Status:               ethTxData.Status,
+			Data:                 ethTxData.Data,
 		}
 	}
 	r := &Tx{
@@ -1242,10 +1248,12 @@ func (w *Worker) getEthereumTypeAddressBalances(addrDesc bchain.AddressDescripto
 		d.totalResults = -1
 	}
 	// if staking pool enabled, fetch the staking pool details
-	if details >= AccountDetailsTokenBalances {
-		d.stakingPools, err = w.getStakingPoolsData(addrDesc)
-		if err != nil {
-			return nil, nil, err
+	if details >= AccountDetailsBasic {
+		if len(w.chain.EthereumTypeGetSupportedStakingPools()) > 0 {
+			d.stakingPools, err = w.getStakingPoolsData(addrDesc)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 	return ba, &d, nil
@@ -1372,6 +1380,8 @@ func (w *Worker) GetAddress(address string, page int, txsOnPage int, option Acco
 		txids                    []string
 		pg                       Paging
 		uBalSat                  big.Int
+		uBalSending              big.Int
+		uBalReceiving            big.Int
 		totalReceived, totalSent *big.Int
 		unconfirmedTxs           int
 		totalResults             int
@@ -1423,12 +1433,12 @@ func (w *Worker) GetAddress(address string, page int, txsOnPage int, option Acco
 				// skip already confirmed txs, mempool may be out of sync
 				if tx.Confirmations == 0 {
 					unconfirmedTxs++
-					uBalSat.Add(&uBalSat, tx.getAddrVoutValue(addrDesc))
+					uBalReceiving.Add(&uBalReceiving, tx.getAddrVoutValue(addrDesc))
 					// ethereum has a different logic - value not in input and add maximum possible fees
 					if w.chainType == bchain.ChainEthereumType {
-						uBalSat.Sub(&uBalSat, tx.getAddrEthereumTypeMempoolInputValue(addrDesc))
+						uBalSending.Add(&uBalSending, tx.getAddrEthereumTypeMempoolInputValue(addrDesc))
 					} else {
-						uBalSat.Sub(&uBalSat, tx.getAddrVinValue(addrDesc))
+						uBalSending.Add(&uBalSending, tx.getAddrVinValue(addrDesc))
 					}
 					if page == 0 {
 						if option == AccountDetailsTxidHistory {
@@ -1495,6 +1505,7 @@ func (w *Worker) GetAddress(address string, page int, txsOnPage int, option Acco
 			totalSecondaryValue = secondaryRate * totalBaseValue
 		}
 	}
+	uBalSat.Sub(&uBalReceiving, &uBalSending)
 	r := &Address{
 		Paging:                pg,
 		AddrStr:               address,
@@ -1506,6 +1517,8 @@ func (w *Worker) GetAddress(address string, page int, txsOnPage int, option Acco
 		InternalTxs:           ed.internalTxs,
 		UnconfirmedBalanceSat: (*Amount)(&uBalSat),
 		UnconfirmedTxs:        unconfirmedTxs,
+		UnconfirmedSending:    amountOrNil(&uBalSending),
+		UnconfirmedReceiving:  amountOrNil(&uBalReceiving),
 		Transactions:          txs,
 		Txids:                 txids,
 		Tokens:                ed.tokens,
@@ -1525,6 +1538,14 @@ func (w *Worker) GetAddress(address string, page int, txsOnPage int, option Acco
 	}
 	glog.Info("GetAddress-", option, " ", address, ", ", time.Since(start))
 	return r, nil
+}
+
+// Returns either the Amount or nil if the number is zero
+func amountOrNil(num *big.Int) *Amount {
+	if num.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+	return (*Amount)(num)
 }
 
 func (w *Worker) balanceHistoryHeightsFromTo(fromTimestamp, toTimestamp int64) (uint32, uint32, uint32, uint32) {
@@ -2329,7 +2350,7 @@ func (w *Worker) GetBlock(bid string, page int, txsOnPage int) (*Block, error) {
 	}, nil
 }
 
-// GetBlock returns paged data about block
+// GetBlockRaw returns paged data about block
 func (w *Worker) GetBlockRaw(bid string) (*BlockRaw, error) {
 	hash := w.getBlockHashBlockID(bid)
 	if hash == "" {
@@ -2459,6 +2480,7 @@ func (w *Worker) GetSystemInfo(internal bool) (*SystemInfo, error) {
 	start := time.Now().UTC()
 	vi := common.GetVersionInfo()
 	inSync, bestHeight, lastBlockTime, startSync := w.is.GetSyncState()
+	blockPeriod := w.is.GetAvgBlockPeriod()
 	if !inSync && !w.is.InitialSync {
 		// if less than 5 seconds into syncing, return inSync=true to avoid short time not in sync reports that confuse monitoring
 		if startSync.Add(5 * time.Second).After(start) {
@@ -2475,6 +2497,13 @@ func (w *Worker) GetSystemInfo(internal bool) (*SystemInfo, error) {
 		// set not in sync in case of backend error
 		inSync = false
 		inSyncMempool = false
+	}
+	// for networks with stable block period, set not in sync if last sync more than 12 block periods ago
+	if inSync && blockPeriod > 0 && w.chainType == bchain.ChainEthereumType {
+		threshold := 12 * time.Duration(blockPeriod) * time.Second
+		if lastBlockTime.Add(threshold).Before(time.Now().UTC()) {
+			inSync = false
+		}
 	}
 	var columnStats []common.InternalStateColumn
 	var internalDBSize int64

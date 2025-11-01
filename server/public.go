@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"math/big"
@@ -711,11 +712,11 @@ func addressAliasSpan(a string, td *TemplateData) template.HTML {
 		rv.WriteString(a)
 	} else {
 		rv.WriteString(`<span class="copyable" cc="`)
-		rv.WriteString(a)
+		rv.WriteString(html.EscapeString(a))
 		rv.WriteString(`" alias-type="`)
 		rv.WriteString(alias.Type)
 		rv.WriteString(`">`)
-		rv.WriteString(alias.Alias)
+		rv.WriteString(html.EscapeString(alias.Alias))
 	}
 	rv.WriteString("</span>")
 	return template.HTML(rv.String())
@@ -1066,7 +1067,7 @@ func (s *PublicServer) explorerSendTx(w http.ResponseWriter, r *http.Request) (t
 		}
 		hex := r.FormValue("hex")
 		if len(hex) > 0 {
-			res, err := s.chain.SendRawTransaction(hex)
+			res, err := s.chain.SendRawTransaction(hex, false)
 			if err != nil {
 				data.SendTxHex = hex
 				data.Error = &api.APIError{Text: err.Error(), Public: true}
@@ -1516,7 +1517,7 @@ func (s *PublicServer) apiSendTx(r *http.Request, apiVersion int) (interface{}, 
 		}
 	}
 	if len(hex) > 0 {
-		res.Result, err = s.chain.SendRawTransaction(hex)
+		res.Result, err = s.chain.SendRawTransaction(hex, false)
 		if err != nil {
 			return nil, api.NewAPIError(err.Error(), true)
 		}

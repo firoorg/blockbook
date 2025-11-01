@@ -81,6 +81,8 @@ func init() {
 	BlockChainFactories["Ethereum Testnet Sepolia Archive"] = eth.NewEthereumRPC
 	BlockChainFactories["Ethereum Testnet Holesky"] = eth.NewEthereumRPC
 	BlockChainFactories["Ethereum Testnet Holesky Archive"] = eth.NewEthereumRPC
+	BlockChainFactories["Ethereum Testnet Hoodi"] = eth.NewEthereumRPC
+	BlockChainFactories["Ethereum Testnet Hoodi Archive"] = eth.NewEthereumRPC
 	BlockChainFactories["Bcash"] = bch.NewBCashRPC
 	BlockChainFactories["Bcash Testnet"] = bch.NewBCashRPC
 	BlockChainFactories["Bgold"] = btg.NewBGoldRPC
@@ -297,9 +299,14 @@ func (c *blockChainWithMetrics) EstimateFee(blocks int) (v big.Int, err error) {
 	return c.b.EstimateFee(blocks)
 }
 
-func (c *blockChainWithMetrics) SendRawTransaction(tx string) (v string, err error) {
+func (c *blockChainWithMetrics) LongTermFeeRate() (v *bchain.LongTermFeeRate, err error) {
+	defer func(s time.Time) { c.observeRPCLatency("LongTermFeeRate", s, err) }(time.Now())
+	return c.b.LongTermFeeRate()
+}
+
+func (c *blockChainWithMetrics) SendRawTransaction(tx string, disableAlternativeRPC bool) (v string, err error) {
 	defer func(s time.Time) { c.observeRPCLatency("SendRawTransaction", s, err) }(time.Now())
-	return c.b.SendRawTransaction(tx)
+	return c.b.SendRawTransaction(tx, disableAlternativeRPC)
 }
 
 func (c *blockChainWithMetrics) GetMempoolEntry(txid string) (v *bchain.MempoolEntry, err error) {
